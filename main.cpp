@@ -58,8 +58,6 @@ int main(int argc, char** argv)
 		cout << "Load Base Image Files" << endl;
 		Mat BaseImageLeft = imread(imageName1, -1);
 		Mat BaseImageRight = imread(imageName2, -1);
-		downsample(&BaseImageLeft);
-		downsample(&BaseImageRight);
 
 		if (!BaseImageLeft.data || !BaseImageRight.data)
 			printf(" --(!) Error reading images \n");
@@ -115,7 +113,7 @@ int main(int argc, char** argv)
 
 				cout << "Compute Fundamental Matrix" << endl;
 				std::vector<uchar> inliers(points1.size(), 0);
-				fundamentalMatrix = cv::findFundamentalMat(cv::Mat(points1), cv::Mat(points2), inliers, CV_FM_RANSAC, 3.0, 0.8); // Compute fundamental matrix using RANSAC
+				fundamentalMatrix = cv::findFundamentalMat(cv::Mat(points1), cv::Mat(points2), inliers, CV_FM_RANSAC, 3.0, 0.99); // Compute fundamental matrix using RANSAC
 				// extract the surviving (inliers) matches
 				std::vector<cv::DMatch>::const_iterator	itM = goodMatches.begin();
 				for (std::vector<uchar>::const_iterator itIn = inliers.begin(); itIn != inliers.end(); ++itIn, ++itM)
@@ -138,6 +136,7 @@ int main(int argc, char** argv)
 					y = keypoints_2[it->trainIdx].pt.y;
 					points2.push_back(cv::Point2f(x, y));
 				}
+				// Depends on your source image features, please use CV_FM_7POINT if feature points are few
 				fundamentalMatrix = cv::findFundamentalMat(cv::Mat(points1), cv::Mat(points2), CV_FM_8POINT);
 			}
 
@@ -161,7 +160,7 @@ int main(int argc, char** argv)
 			cout << "Triangulation" << endl;
 			double pX = BaseImageLeft.cols / 2.0;
 			double pY = BaseImageRight.rows / 2.0;
-			K = (Mat_<double>(3, 3) << 1000, 0, pX, 0, 1000, pY, 0, 0, 1);
+			K = (Mat_<double>(3, 3) << 2569.1, 0, 2180.3, 0, 2429.6, 1416.3, 0, 0, 1);
 
 			Mat_<double> E = K.t() * fundamentalMatrix * K; // E = (K').transpose() * F * K
 
@@ -211,27 +210,6 @@ int main(int argc, char** argv)
 			firstTwoImages = false;
 
 			cout << "Complete processing " << imageName1 << "and " << imageName2 << "\n" << endl;
-			/*
-			cout << "Write Point Cloud" << endl;
-			ofstream outfile("test.ply");
-			outfile << "ply\n" << "format ascii 1.0\n" << "element face 0\n";
-			outfile << "property list uchar int vertex_indices\n" << "element vertex " << pointCloud.size() << "\n";
-			outfile << "property float x\n" << "property float y\n" << "property float z\n";
-			outfile << "property uchar diffuse_red\n" << "property uchar diffuse_green\n" << "property uchar diffuse_blue\n";
-			outfile << "end_header\n" << "0 0 0 255 0 0\n";;
-			for (int i = 0; i < pointCloud.size(); i++)
-			{
-				outfile << pointCloud.at(i).point.x << " ";
-				outfile << pointCloud.at(i).point.y << " ";
-				outfile << pointCloud.at(i).point.z << " ";
-				outfile << colours.at(i).blue << " ";
-				outfile << colours.at(i).green << " ";
-				outfile << colours.at(i).red << " ";
-				outfile << "\n";
-			}
-
-			outfile.close();
-			*/
 		}
 		else
 		{
@@ -254,7 +232,7 @@ int main(int argc, char** argv)
 				}
 
 				std::vector<uchar> inliers(points1.size(), 0);
-				fundamentalMatrix = cv::findFundamentalMat(cv::Mat(points1), cv::Mat(points2), inliers, CV_FM_RANSAC, 3.0, 0.8);
+				fundamentalMatrix = cv::findFundamentalMat(cv::Mat(points1), cv::Mat(points2), inliers, CV_FM_RANSAC, 3.0, 0.99);
 
 				std::vector<cv::DMatch>::const_iterator	itM = goodMatches.begin();
 				for (std::vector<uchar>::const_iterator itIn = inliers.begin(); itIn != inliers.end(); ++itIn, ++itM)
@@ -569,36 +547,4 @@ Matx34d tableProcess(Matx34d P1, vector<cv::Point2f> newKeyPoints, vector<cv::Po
 										R1(2, 0), R1(2, 1), R1(2, 2), t1(2));
 
 	return Matx34d(camera);
-}
-
-void downsample(Mat *image)
-{
-	int maxRows = 1800;
-	int maxCols = 1600;
-	Mat modifyImage = *image;
-	int height = modifyImage.rows;
-	int width = modifyImage.cols;
-	//account for odds
-	if (height % 2 != 0)
-		height--;
-	if (width % 2 != 0)
-		width--;
-	//form new images:
-	Mat evenSize(modifyImage, Rect(0, 0, width - 1, height - 1));
-	Mat downSize;
-	while (height * width > maxRows * maxCols)
-	{
-		pyrDown(evenSize, downSize, Size(width / 2, height / 2));
-		//set new image to the downsized one
-		*image = downSize;
-		//do again and account for odds
-		height = downSize.rows;
-		width = downSize.cols;
-		if (height % 2 != 0)
-			height--;
-		if (width % 2 != 0)
-			width--;
-		Mat next(downSize, Rect(0, 0, width - 1, height - 1));
-		evenSize = next;
-	}
 }
